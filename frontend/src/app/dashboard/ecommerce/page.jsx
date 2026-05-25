@@ -6,7 +6,6 @@ import { loadStripe } from "@stripe/stripe-js";
 import { Elements } from "@stripe/react-stripe-js";
 import { Spin } from "antd";
 import { FiMonitor, FiArrowRight, FiShield } from "react-icons/fi";
-import CheckoutForm from "@/components/ecommerce/CheckoutForm";
 
 // Initialize Stripe (Replace with your actual public key in the tutorial)
 // Make sure to emphasize to learners: NEVER put the Secret Key here!
@@ -23,18 +22,6 @@ export default function EcommerceModule() {
 		price: 99.0,
 		description:
 			"Complete lifetime access to the university-standard architecture curriculum.",
-	};
-
-	const handleInitializePayment = () => {
-		setIsCreatingIntent(true);
-
-		// TODO for the tutorial: Replace this setTimeout with a real fetch() call to the Node.js backend
-		// e.g., fetch('/api/create-payment-intent', { method: 'POST', body: JSON.stringify({ items: [...] }) })
-		setTimeout(() => {
-			// Mocking the client_secret returned from Node.js
-			setClientSecret("pi_mock_secret_12345_secret_67890");
-			setIsCreatingIntent(false);
-		}, 1500);
 	};
 
 	return (
@@ -66,7 +53,6 @@ export default function EcommerceModule() {
 
 					{!clientSecret && (
 						<button
-							onClick={handleInitializePayment}
 							disabled={isCreatingIntent}
 							className="flex items-center justify-center gap-2 w-full bg-slate-800 text-white py-4 rounded-xl font-bold text-lg hover:bg-slate-900 transition-colors disabled:opacity-70 cursor-pointer"
 						>
@@ -92,27 +78,16 @@ export default function EcommerceModule() {
 
 				{/* Right Side: Stripe Elements UI */}
 				<div className="flex flex-col w-full md:w-[450px]">
-					{clientSecret ? (
-						<div className="animate-fade-in">
-							<Elements
-								stripe={stripePromise}
-								options={{ clientSecret, appearance: { theme: "stripe" } }}
-							>
-								{/* <CheckoutForm amount={product.price} /> */}
-							</Elements>
-						</div>
-					) : (
-						<div className="flex flex-col items-center justify-center h-full min-h-[300px] bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 text-slate-400 p-8 text-center">
-							<FiShield size={48} className="mb-4 opacity-50 text-slate-300" />
-							<p className="text-lg font-medium text-slate-500 mb-2">
-								Waiting for Backend...
-							</p>
-							<p className="text-sm">
-								Click "Generate Payment Intent" to simulate the Node.js response
-								and load the Stripe form.
-							</p>
-						</div>
-					)}
+					<div className="flex flex-col items-center justify-center h-full min-h-[300px] bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 text-slate-400 p-8 text-center">
+						<FiShield size={48} className="mb-4 opacity-50 text-slate-300" />
+						<p className="text-lg font-medium text-slate-500 mb-2">
+							Waiting for Backend...
+						</p>
+						<p className="text-sm">
+							Click "Generate Payment Intent" to simulate the Node.js response
+							and load the Stripe form.
+						</p>
+					</div>
 				</div>
 			</div>
 		</div>
