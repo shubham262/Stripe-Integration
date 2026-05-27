@@ -1,8 +1,8 @@
 "use client";
 
-import React from "react";
+import React, { useCallback } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
 	FiHome,
 	FiShoppingBag,
@@ -13,6 +13,7 @@ import {
 	FiSettings,
 	FiCode,
 } from "react-icons/fi";
+import { authClient } from "@/config/auth";
 
 const NAV_ITEMS = [
 	{ name: "Overview", path: "/dashboard", icon: <FiHome size={20} /> },
@@ -45,7 +46,12 @@ const NAV_ITEMS = [
 
 export default function SidebarContent() {
 	const pathname = usePathname();
-
+	const router = useRouter();
+	const handleLogout = useCallback(async () => {
+		await authClient.signOut();
+		localStorage.clear();
+		router.push(`/signin`);
+	}, [router]);
 	return (
 		<div className="flex flex-col h-full bg-white text-slate-700">
 			{/* Brand Header */}
@@ -91,9 +97,9 @@ export default function SidebarContent() {
 
 			{/* Bottom Settings Link */}
 			<div className="p-4 border-t border-slate-100">
-				<Link
-					href="/dashboard/settings"
-					className={`flex items-center gap-3 px-3 py-3 rounded-lg transition-colors font-medium ${
+				<div
+					onClick={handleLogout}
+					className={`cursor-pointer flex items-center gap-3 px-3 py-3 rounded-lg transition-colors font-medium ${
 						pathname === "/dashboard/settings"
 							? "bg-blue-50 text-blue-600 border border-blue-100 shadow-sm"
 							: "text-slate-500 hover:bg-slate-50 hover:text-slate-700"
@@ -102,8 +108,8 @@ export default function SidebarContent() {
 					<div className="text-slate-400">
 						<FiSettings size={20} />
 					</div>
-					API Configuration
-				</Link>
+					Logout
+				</div>
 			</div>
 		</div>
 	);
