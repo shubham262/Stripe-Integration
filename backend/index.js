@@ -3,6 +3,7 @@ import cors from "cors";
 import { handleBetterAuth } from "./src/config/auth.js";
 import { toNodeHandler } from "better-auth/node";
 import ecommerceRoute from "./src/routes/ecommerceRoute.js";
+import { stripeWebhookController } from "./src/controllers/ecommerceController.js";
 const app = express();
 const PORT = process.env.PORT || 3001;
 const auth = await handleBetterAuth();
@@ -11,6 +12,12 @@ app.use(
 		origin: ["http://localhost:3000"],
 		credentials: true,
 	})
+);
+
+app.post(
+	"/api/webhook/stripe",
+	express.raw({ type: "application/json" }),
+	stripeWebhookController
 );
 app.use(express.json());
 app.use("/api/auth", toNodeHandler(auth));
