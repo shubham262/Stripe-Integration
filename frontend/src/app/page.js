@@ -10,7 +10,6 @@ import {
 	FiCreditCard,
 } from "react-icons/fi";
 
-
 const MOCK_PRODUCTS = [
 	{ id: "price_1", name: "System Design Course", price: 99.0, image: "📘" },
 	{ id: "price_2", name: "Agentic AI Masterclass", price: 149.0, image: "🤖" },
@@ -20,7 +19,6 @@ const MOCK_PRODUCTS = [
 export default function CheckoutPage() {
 	const [cart, setCart] = useState([]);
 	const [isProcessing, setIsProcessing] = useState(false);
-
 
 	const addToCart = (product) => {
 		setCart((prev) => {
@@ -64,10 +62,8 @@ export default function CheckoutPage() {
 		0
 	);
 
-	
 	const handleCheckout = async () => {
 		setIsProcessing(true);
-		
 
 		setTimeout(() => {
 			setIsProcessing(false);
@@ -80,9 +76,7 @@ export default function CheckoutPage() {
 	};
 
 	return (
-		// Main Container: strictly light colors, flexbox layout
 		<div className="min-h-screen bg-slate-50 text-slate-700 font-sans flex flex-col md:flex-row justify-center p-4 md:p-10 gap-8">
-			{/* LEFT COLUMN: Product Selection */}
 			<div className="flex flex-col w-full md:w-3/5 gap-6">
 				<div className="flex flex-col mb-4">
 					<h1 className="text-3xl font-bold text-slate-800 m-0">

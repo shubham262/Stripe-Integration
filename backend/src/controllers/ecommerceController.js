@@ -130,25 +130,24 @@ export const createCheckoutSessionController = async (req, res) => {
 };
 
 export const stripeWebhookController = async (req, res) => {
-	// Extract the cryptographic signature provided by Stripe
+	
 	const sig = req.headers["stripe-signature"];
 	const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 	let event;
 
 	try {
-		// 1. Verify the Signature
-		// 🚨 CRITICAL: req.body MUST be a raw Buffer here, not a parsed JSON object.
+		
 		event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
 	} catch (err) {
 		console.error(
 			`[Webhook Security Error]: Signature verification failed.`,
 			err.message
 		);
-		// Immediately reject malicious or malformed requests
+		
 		return res.status(400).send(`Webhook Error: ${err.message}`);
 	}
 
-	// 2. The State Machine Router
+
 	try {
 		switch (event.type) {
 			case "checkout.session.completed": {
