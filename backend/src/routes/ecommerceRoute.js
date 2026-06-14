@@ -1,8 +1,12 @@
 import express from "express";
-import { seedProductsController } from "../controllers/ecommerceController.js";
+import {
+	seedProductsController,
+	fetchAllProductsController,
+} from "../controllers/ecommerceController.js";
 
 const router = express.Router();
 
 router.post("/seed", seedProductsController);
+router.get("/products", fetchAllProductsController);
 
 export default router;
