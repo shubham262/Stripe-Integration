@@ -1,10 +1,40 @@
+/* eslint-disable react-hooks/immutability */
 "use client";
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { Result, Button } from "antd";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { fetchStripePayementStatus } from "@/service/stripeService";
 
 const CheckoutSuccess = () => {
 	const router = useRouter();
+
+	const intervalRef = useRef(null);
+	const params = useSearchParams();
+	const stripeId = params.get("sessionId");
+
+	useEffect(() => {
+		const intervalId = setInterval(() => {
+			fetchStatus();
+		}, 3000);
+		intervalRef.current = intervalId;
+
+		() => {
+			clearInterval(intervalRef.current);
+			intervalRef.current = null;
+		};
+	}, []);
+
+	const fetchStatus = async () => {
+		try {
+			const respose = await fetchStripePayementStatus(stripeId);
+
+			if (respose?.order?.[0]?.status === "paid") {
+				clearInterval(intervalRef.current);
+				intervalRef.current = null;
+				router.push("/dashboard");
+			}
+		} catch (error) {}
+	};
 
 	return (
 		<div className="min-h-[80vh] bg-gray-50 flex items-center justify-center p-6">

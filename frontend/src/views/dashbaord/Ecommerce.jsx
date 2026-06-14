@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable react-hooks/immutability */
 "use client";
-import { fetchProducts } from "@/service/stripeService";
+import { checkout, fetchProducts } from "@/service/stripeService";
 import { message, Button, Card, Typography, List, Divider, Empty } from "antd";
 import React, { useCallback, useEffect, useState } from "react";
 import { FaShoppingCart, FaTrash } from "react-icons/fa";
@@ -43,7 +43,7 @@ const Ecommerce = () => {
 	const handleRemoveFromCart = (id) => {
 		setInfo((prev) => ({
 			...prev,
-			cart: prev.filter((item) => item._id !== id),
+			cart: prev.cart.filter((item) => item._id !== id),
 		}));
 	};
 
@@ -54,6 +54,11 @@ const Ecommerce = () => {
 			message.error("Please add at least one course to checkout.");
 			return;
 		}
+		const payload = {
+			items: [...info?.cart],
+		};
+		const response = await checkout(payload);
+		window.location.href = response?.url;
 
 		setLoadingCheckout(true);
 		try {
@@ -100,7 +105,7 @@ const Ecommerce = () => {
 								</div>
 								<div className="mt-auto pt-4 flex items-center justify-between border-t border-gray-100">
 									<Text strong className="text-xl">
-										${(course.price / 100).toFixed(2)}
+										₹{(course.price / 100).toFixed(2)}
 									</Text>
 									<Button
 										type="primary"
@@ -164,7 +169,7 @@ const Ecommerce = () => {
 								Total Due
 							</Text>
 							<Text strong className="text-2xl text-blue-600">
-								${(cartTotalCents / 100).toFixed(2)}
+								₹{(cartTotalCents / 100).toFixed(2)}
 							</Text>
 						</div>
 
