@@ -121,7 +121,7 @@ export const createCheckoutSessionController = async (req, res) => {
 			// These URLs are where Stripe will redirect the user after the attempt
 			success_url: `http://localhost:3000/dashboard/success?session_id={CHECKOUT_SESSION_ID}`,
 			cancel_url: `http://localhost:3000/dashboard/ecommerce`,
-
+			allow_promotion_codes: true,
 			metadata: {
 				userId: userId.toString(),
 			},
@@ -344,7 +344,7 @@ export const createSubscriptionSessionController = async (req, res) => {
 					quantity: 1,
 				},
 			],
-
+			allow_promotion_codes: true,
 			success_url: `http://localhost:3000/dashboard/success?session_id={CHECKOUT_SESSION_ID}`,
 			cancel_url: `http://localhost:3000/dashboard/pricing`, // Redirect back to pricing page if they back out
 
