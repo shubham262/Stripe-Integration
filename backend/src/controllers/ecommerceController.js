@@ -25,6 +25,24 @@ export const seedProductsController = async (req, res) => {
 		});
 	}
 };
+export const fetchAllProductsController = async (req, res) => {
+	try {
+		const products = await Product.find();
+		return res.status(201).json({
+			success: true,
+			message: "Fetch all products successfully",
+			products,
+		});
+	} catch (error) {
+		console.error("[fetchAllProductsController] Critical Error:", error);
+
+		return res.status(500).json({
+			success: false,
+			error: "Failed to fetch products",
+			details: error.message,
+		});
+	}
+};
 
 export const createCheckoutSessionController = async (req, res) => {
 	try {
@@ -130,23 +148,20 @@ export const createCheckoutSessionController = async (req, res) => {
 };
 
 export const stripeWebhookController = async (req, res) => {
-	
 	const sig = req.headers["stripe-signature"];
 	const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
 	let event;
 
 	try {
-		
 		event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
 	} catch (err) {
 		console.error(
 			`[Webhook Security Error]: Signature verification failed.`,
 			err.message
 		);
-		
+
 		return res.status(400).send(`Webhook Error: ${err.message}`);
 	}
-
 
 	try {
 		switch (event.type) {
