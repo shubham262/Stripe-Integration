@@ -1,7 +1,7 @@
 import stripe from "../config/stripe.js";
 import { seedProducts } from "../constants/index.js";
 import db from "../models/index.js";
-const { Product, Order } = db;
+const { Product, Order, Plan } = db;
 
 export const seedProductsController = async (req, res) => {
 	try {
@@ -218,5 +218,158 @@ export const stripeWebhookController = async (req, res) => {
 	} catch (error) {
 		console.error("[Webhook Database Error]:", error);
 		res.status(500).send("Internal Server Error during fulfillment.");
+	}
+};
+
+export const fetchAllPlansController = async (req, res) => {
+	try {
+		const plans = await Plan.find({ active: true }).sort({ createdAt: 1 });
+
+		return res.status(200).json({
+			success: true,
+			message: "Successfully fetched active plans",
+			count: plans.length,
+			data: plans,
+		});
+	} catch (error) {
+		console.error("[fetchAllPlansController] Critical Error:", error);
+
+		return res.status(500).json({
+			success: false,
+			error: "Failed to fetch all plans",
+			details: error.message,
+		});
+	}
+};
+
+export const createPlanController = async (req, res) => {
+	try {
+		const {
+			name,
+			description,
+			stripeProductId,
+			features,
+			pricingOptions,
+			active,
+		} = req.body;
+
+		if (
+			!name ||
+			!description ||
+			!stripeProductId ||
+			!pricingOptions ||
+			!Array.isArray(pricingOptions)
+		) {
+			return res.status(400).json({
+				success: false,
+				error:
+					"Missing or invalid fields. 'name', 'description', 'stripeProductId', and 'pricingOptions' (array) are required.",
+			});
+		}
+
+		const existingPlan = await Plan.findOne({ stripeProductId });
+		if (existingPlan) {
+			return res.status(409).json({
+				// 409 Conflict
+				success: false,
+				error: `A plan linked to Stripe Product ID ${stripeProductId} already exists.`,
+			});
+		}
+
+		const newPlan = await Plan.create({
+			name,
+			description,
+			stripeProductId,
+			features: features || [],
+			pricingOptions,
+			active: active !== undefined ? active : true,
+		});
+
+		return res.status(201).json({
+			success: true,
+			message: "Plan successfully created",
+			data: newPlan,
+		});
+	} catch (error) {
+		console.error("[createPlanController] Critical Error:", error);
+
+		return res.status(500).json({
+			success: false,
+			error: "Failed to create plan",
+			details: error.message,
+		});
+	}
+};
+
+export const createSubscriptionSessionController = async (req, res) => {
+	try {
+		const userId = req.user.id;
+
+		const { planId, interval } = req.body;
+
+		if (!planId || !interval) {
+			return res.status(400).json({
+				success: false,
+				error: "Plan ID and interval (month/year) are required.",
+			});
+		}
+
+		const plan = await Plan.findById(planId);
+
+		if (!plan || !plan.active) {
+			return res.status(404).json({
+				success: false,
+				error: "Selected plan is unavailable or no longer exists.",
+			});
+		}
+
+		const pricingOption = plan.pricingOptions.find(
+			(option) => option.interval === interval
+		);
+
+		if (!pricingOption || !pricingOption.stripePriceId) {
+			return res.status(400).json({
+				success: false,
+				error: `Pricing for the ${interval} interval is not configured for this plan.`,
+			});
+		}
+
+		const session = await stripe.checkout.sessions.create({
+			payment_method_types: ["card"],
+			mode: "subscription",
+
+			line_items: [
+				{
+					price: pricingOption.stripePriceId,
+					quantity: 1,
+				},
+			],
+
+			success_url: `http://localhost:3000/dashboard/success?session_id={CHECKOUT_SESSION_ID}`,
+			cancel_url: `http://localhost:3000/dashboard/pricing`, // Redirect back to pricing page if they back out
+
+			client_reference_id: userId.toString(),
+
+			metadata: {
+				userId: userId.toString(),
+				planId: planId.toString(),
+				interval: interval,
+			},
+		});
+
+		return res.status(200).json({
+			success: true,
+			url: session.url,
+		});
+	} catch (error) {
+		console.error(
+			"[createSubscriptionSessionController] Critical Error:",
+			error
+		);
+		return res.status(500).json({
+			success: false,
+			error: "Failed to initialize subscription checkout",
+			details: error.message,
+		});
 	}
 };
