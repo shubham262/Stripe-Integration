@@ -142,26 +142,6 @@ export default function OverviewPage() {
 								</span>
 							</div>
 						</div>
-						<div className="flex gap-4 border-l-2 border-slate-100 pl-4 pb-2 opacity-60">
-							<div className="flex flex-col">
-								<span className="text-lg font-bold text-slate-800">
-									3. Usage-Based Billing
-								</span>
-								<span className="text-slate-500 mt-1">
-									Metered billing for APIs, AI tokens, and platform consumption.
-								</span>
-							</div>
-						</div>
-						<div className="flex gap-4 border-l-2 border-slate-100 pl-4 pb-2 opacity-60">
-							<div className="flex flex-col">
-								<span className="text-lg font-bold text-slate-800">
-									4. Stripe Connect
-								</span>
-								<span className="text-slate-500 mt-1">
-									Multi-party marketplace routing and platform fee collection.
-								</span>
-							</div>
-						</div>
 					</div>
 				</div>
 
