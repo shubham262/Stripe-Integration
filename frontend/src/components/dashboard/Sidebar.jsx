@@ -27,21 +27,6 @@ const NAV_ITEMS = [
 		path: "/dashboard/subscriptions",
 		icon: <FiRepeat size={20} />,
 	},
-	{
-		name: "Usage-Based Billing",
-		path: "/dashboard/metered",
-		icon: <FiActivity size={20} />,
-	},
-	{
-		name: "Stripe Connect",
-		path: "/dashboard/connect",
-		icon: <FiUsers size={20} />,
-	},
-	{
-		name: "Webhooks & Security",
-		path: "/dashboard/webhooks",
-		icon: <FiShield size={20} />,
-	},
 ];
 
 export default function SidebarContent() {
