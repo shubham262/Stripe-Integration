@@ -1,7 +1,7 @@
 import stripe from "../config/stripe.js";
 import { seedProducts } from "../constants/index.js";
 import db from "../models/index.js";
-const { Product, Order, Plan } = db;
+const { Product, Order, Plan, Subscription } = db;
 
 export const seedProductsController = async (req, res) => {
 	try {
@@ -153,74 +153,166 @@ export const stripeWebhookController = async (req, res) => {
 	let event;
 
 	try {
+		// We use req.body (raw buffer) to construct the secure event
 		event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
 	} catch (err) {
 		console.error(
 			`[Webhook Security Error]: Signature verification failed.`,
 			err.message
 		);
-
 		return res.status(400).send(`Webhook Error: ${err.message}`);
 	}
 
 	try {
 		switch (event.type) {
+			// ==========================================
+			// 1. THE CHECKOUT COMPLETED EVENT
+			// Fires once when the user finishes entering their card on the hosted page
+			// ==========================================
 			case "checkout.session.completed": {
 				const session = event.data.object;
 
-				// 3. Fulfill the Order
-				// We saved the session.id as the stripePaymentIntentId when creating the order
-				const updatedOrder = await Order.findOneAndUpdate(
-					{ stripePaymentIntentId: session.id },
-					{
-						$set: {
-							status: "paid",
-							stripePaymentIntentStatus: session.payment_status,
-							paidAt: new Date(),
+				// BRANCH A: ONE-TIME E-COMMERCE PAYMENT
+				if (session.mode === "payment") {
+					const updatedOrder = await Order.findOneAndUpdate(
+						{ stripePaymentIntentId: session.id },
+						{
+							$set: {
+								status: "paid",
+								stripePaymentIntentStatus: session.payment_status,
+								paidAt: new Date(),
+							},
 						},
-					},
-					{ new: true } // Return the updated document
-				);
-
-				if (updatedOrder) {
-					console.log(
-						`✅ SUCCESS: Order ${updatedOrder._id} has been marked as PAID.`
+						{ new: true }
 					);
-					// TODO: Here you would trigger course access, email receipts, etc.
-				} else {
-					console.error(
-						`⚠️ CRITICAL: Payment succeeded, but Order was not found for session ID: ${session.id}`
+
+					if (updatedOrder) {
+						console.log(
+							`✅ SUCCESS: E-commerce Order ${updatedOrder._id} marked as PAID.`
+						);
+					} else {
+						console.error(
+							`⚠️ CRITICAL: Order not found for session ID: ${session.id}`
+						);
+					}
+				}
+
+				// BRANCH B: RECURRING SUBSCRIPTION CREATION
+				else if (session.mode === "subscription") {
+					// Extract the IDs we passed in the controller earlier
+					const userId = session.metadata.userId;
+					const planId = session.metadata.planId;
+
+					const stripeCustomerId = session.customer;
+					const stripeSubscriptionId = session.subscription;
+
+					// Create the initial subscription record in MongoDB
+					await Subscription.create({
+						userId: userId,
+						planId: planId,
+						stripeCustomerId: stripeCustomerId,
+						stripeSubscriptionId: stripeSubscriptionId,
+						status: "active",
+						// Give them 30 days initial access. The exact timestamp will be
+						// updated by the 'invoice.payment_succeeded' event that fires immediately after this.
+						currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+					});
+
+					console.log(
+						`✅ SUCCESS: Subscription ${stripeSubscriptionId} created for User ${userId}.`
 					);
 				}
 				break;
 			}
 
+			// ==========================================
+			// 2. SUBSCRIPTION RENEWAL (OR INITIAL PAYMENT)
+			// Fires every time an invoice is successfully paid
+			// ==========================================
+			case "invoice.payment_succeeded": {
+				const invoice = event.data.object;
+
+				// Ensure this invoice is for a subscription (not a random one-off invoice)
+				if (invoice.subscription) {
+					const stripeSubscriptionId = invoice.subscription;
+
+					// Stripe's invoice line items contain the exact unix timestamp for when this new paid period ends
+					const periodEndUnix = invoice.lines.data[0].period.end;
+
+					await Subscription.findOneAndUpdate(
+						{ stripeSubscriptionId: stripeSubscriptionId },
+						{
+							$set: {
+								status: "active",
+								currentPeriodEnd: new Date(periodEndUnix * 1000), // Convert Unix to JS Date
+							},
+						}
+					);
+					console.log(
+						`🔄 RENEWAL: Subscription ${stripeSubscriptionId} extended to ${new Date(
+							periodEndUnix * 1000
+						).toLocaleDateString()}.`
+					);
+				}
+				break;
+			}
+
+			// ==========================================
+			// 3. PAYMENT FAILED (CARD EXPIRED, INSUFFICIENT FUNDS)
+			// ==========================================
+			case "invoice.payment_failed": {
+				const invoice = event.data.object;
+				if (invoice.subscription) {
+					await Subscription.findOneAndUpdate(
+						{ stripeSubscriptionId: invoice.subscription },
+						{ $set: { status: "past_due" } }
+					);
+					console.warn(
+						`⚠️ FAILED: Payment failed for subscription ${invoice.subscription}. Marked as past_due.`
+					);
+				}
+				break;
+			}
+
+			// ==========================================
+			// 4. SUBSCRIPTION CANCELED
+			// Fires if the user cancels via Customer Portal, or if all retries fail
+			// ==========================================
+			case "customer.subscription.deleted": {
+				const subscription = event.data.object;
+
+				await Subscription.findOneAndUpdate(
+					{ stripeSubscriptionId: subscription.id },
+					{ $set: { status: "canceled" } }
+				);
+				console.log(
+					`❌ CANCELED: Subscription ${subscription.id} has been fully terminated.`
+				);
+				break;
+			}
+
+			// E-commerce session expired logic
 			case "checkout.session.expired": {
 				const session = event.data.object;
 				await Order.findOneAndUpdate(
 					{ stripePaymentIntentId: session.id },
 					{ $set: { status: "canceled" } }
 				);
-				console.log(
-					`⏱️ Session expired for ID: ${session.id}. Order canceled.`
-				);
+				console.log(`⏱️ E-commerce session expired for ID: ${session.id}.`);
 				break;
 			}
 
 			default:
-				// It's normal to receive events you don't explicitly handle.
 				console.log(`ℹ️ Unhandled event type: ${event.type}`);
 		}
 
-		// 4. Acknowledge Receipt
-		// You MUST return a 200 quickly so Stripe knows you received it and stops retrying.
+		// Always return 200 quickly so Stripe stops retrying
 		res.status(200).send();
 	} catch (error) {
 		console.error("[Webhook Database Error]:", error);
 		res.status(500).send("Internal Server Error during fulfillment.");
 	}
 };
-
 export const fetchAllPlansController = async (req, res) => {
 	try {
 		const plans = await Plan.find({ active: true }).sort({ createdAt: 1 });
