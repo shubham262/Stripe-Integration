@@ -9,8 +9,6 @@
 		"lint": "eslint"
 	},
 	"dependencies": {
-		"@stripe/react-stripe-js": "^6.4.0",
-		"@stripe/stripe-js": "^9.6.0",
 		"antd": "^6.4.3",
 		"axios": "^1.16.1",
 		"better-auth": "^1.6.5",
