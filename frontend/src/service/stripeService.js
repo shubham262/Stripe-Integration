@@ -8,3 +8,11 @@ export const fetchProducts = async () => {
 		throw error;
 	}
 };
+export const createCheckout = async (payload) => {
+	try {
+		const { data } = await api.post(`/api/ecommerce/checkout`, payload);
+		return data;
+	} catch (error) {
+		throw error;
+	}
+};

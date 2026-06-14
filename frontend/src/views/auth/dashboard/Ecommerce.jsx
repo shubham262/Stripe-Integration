@@ -1,6 +1,7 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable react-hooks/immutability */
 "use client";
+import { createCheckout } from "@/service/stripeService";
 import { fetchProducts } from "@/service/stripeService";
 import { message, Button, Card, Typography, List, Divider, Empty } from "antd";
 import React, { useCallback, useEffect, useState } from "react";
@@ -36,7 +37,10 @@ const Ecommerce = () => {
 			return;
 		}
 
-		setInfo((prev) => ({ ...prev, cart: [...prev.cart, course] }));
+		setInfo((prev) => ({
+			...prev,
+			cart: [...prev.cart, { ...course, quantity: 1 }],
+		}));
 		message.success(`${course.name} added!`);
 	};
 
@@ -55,14 +59,18 @@ const Ecommerce = () => {
 			return;
 		}
 
-		setLoadingCheckout(true);
+		const payload = { items: [...info?.cart] };
+		const response = await createCheckout(payload);
+		window.location.href = response?.url;
+
+		setInfo((prev) => ({ ...prev, loadingCheckout: true }));
 		try {
 			message.info("Redirecting to Stripe Secure Checkout...");
 		} catch (error) {
 			console.error("Checkout Failed:", error);
 			message.error("Could not initiate checkout.");
 		} finally {
-			setLoadingCheckout(false);
+			setInfo((prev) => ({ ...prev, loadingCheckout: false }));
 		}
 	};
 
