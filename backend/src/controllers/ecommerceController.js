@@ -1,7 +1,7 @@
 import stripe from "../config/stripe.js";
-import { seedProducts } from "../constants/index.js";
+import { seedPlans, seedProducts } from "../constants/index.js";
 import db from "../models/index.js";
-const { Product, Order } = db;
+const { Product, Order, Plan, Subscription } = db;
 
 export const seedProductsController = async (req, res) => {
 	try {
@@ -39,6 +39,45 @@ export const fetchAllProductsController = async (req, res) => {
 		return res.status(500).json({
 			success: false,
 			error: "Failed to fetch products",
+			details: error.message,
+		});
+	}
+};
+
+export const seedPlansController = async (req, res) => {
+	try {
+		const seededPlan = await Plan.insertMany(seedPlans);
+
+		return res.status(201).json({
+			success: true,
+			message: "Database successfully seeded with PW curriculum.",
+			count: seededPlan.length,
+			data: seededPlan,
+		});
+	} catch (error) {
+		console.error("[seedPlansController] Critical Error:", error);
+
+		return res.status(500).json({
+			success: false,
+			error: "Failed to seed products",
+			details: error.message,
+		});
+	}
+};
+export const fetchAllPlans = async (req, res) => {
+	try {
+		const plans = await Plan.find();
+		return res.status(201).json({
+			success: true,
+			message: "Fetch all Plans successfully",
+			plans,
+		});
+	} catch (error) {
+		console.error("[fetchAllPlans] Critical Error:", error);
+
+		return res.status(500).json({
+			success: false,
+			error: "Failed to fetch plans",
 			details: error.message,
 		});
 	}
@@ -96,6 +135,7 @@ export const createCheckoutSessionController = async (req, res) => {
 			metadata: {
 				userId: userId.toString(),
 			},
+			allow_promotion_codes: true,
 		});
 
 		const order = await Order.create({
@@ -124,6 +164,67 @@ export const createCheckoutSessionController = async (req, res) => {
 	}
 };
 
+export const createSubscriptionSessionController = async (req, res) => {
+	try {
+		const userId = req.user.id;
+		const { planId, interval } = req.body || {};
+		if (!planId || !interval) {
+			return res.status(500).json({
+				message: "PlanId and Interval is required",
+			});
+		}
+
+		const plan = await Plan.findById(planId);
+
+		if (!plan || !plan.active) {
+			return res.status(500).json({
+				message: "Either Plan does not exist or its in active",
+			});
+		}
+
+		let pricingOptions = plan?.pricingOptions;
+
+		const priceObject = pricingOptions.find((a) => a.interval === interval);
+
+		if (!priceObject || !priceObject?.stripePriceId) {
+			return res.status(500).json({
+				message: "Invalid Price Id",
+			});
+		}
+
+		const session = await stripe.checkout.sessions.create({
+			success_url: `http://localhost:3000/dashboard/success?sessionId={CHECKOUT_SESSION_ID}&type=subscription`,
+			cancel_url: "http://localhost:3000/dashboard/subscriptions",
+			line_items: [
+				{
+					price: priceObject?.stripePriceId,
+					quantity: 1,
+				},
+			],
+			mode: "subscription",
+			allow_promotion_codes: true,
+			payment_method_types: ["card", "upi"],
+			metadata: {
+				userId: userId.toString(),
+				planId,
+			},
+		});
+
+		return res.status(201).json({
+			url: session?.url || "",
+			message: "Subscription Url created",
+		});
+	} catch (error) {
+		console.error("[createCheckoutSessionController] Critical Error:", error);
+
+		return res.status(500).json({
+			success: false,
+			error: "Failed to create checkout",
+			details: error.message,
+		});
+	}
+};
+
 export const stripeWebhookController = async (req, res) => {
 	let event;
 	const endpointSecret = process.env.WEBHOOK_SECRET;
@@ -140,24 +241,66 @@ export const stripeWebhookController = async (req, res) => {
 
 	switch (event.type) {
 		case "checkout.session.completed":
-			const order = await Order.findOneAndUpdate(
-				{ stripePaymentIntentId: sessionId },
-				{
-					stripePaymentIntentStatus: session?.status,
-					paidAt: new Date(),
-					status: "paid",
-				},
-				{
-					returnDocument: "after",
-				}
-			);
-			if (!order) {
-				return res.status(404).json({
-					message: "Order not found",
+			if (session.mode === "subscription") {
+				const subscription = await Subscription.create({
+					userId: session?.metadata?.userId,
+					planId: session?.metadata?.planId,
+					stripeCustomerId: session.customer,
+					stripeSubscriptionId: session.id,
+					status: "active",
+					currentPeriodEnd: new Date(new Date() + 3 * 24 * 60 * 60 * 1000),
 				});
+			} else {
+				const order = await Order.findOneAndUpdate(
+					{ stripePaymentIntentId: sessionId },
+					{
+						stripePaymentIntentStatus: session?.status,
+						paidAt: new Date(),
+						status: "paid",
+					},
+					{
+						returnDocument: "after",
+					}
+				);
+				if (!order) {
+					return res.status(404).json({
+						message: "Order not found",
+					});
+				}
+
+				break;
 			}
 
 			break;
+
+		case "invoice.payment_succeeded": {
+			const periodEnd = session?.period;
+			await Subscription.findOneAndUpdate(
+				{
+					stripeSubscriptionId: session?.id,
+				},
+				{
+					currentPeriodEnd: periodEnd,
+				}
+			);
+
+			console.log("Subscription created for this user");
+			break;
+		}
+
+		case "invoice.payment_failed": {
+			await Subscription.findOneAndUpdate(
+				{
+					stripeSubscriptionId: session?.id,
+				},
+				{
+					status: "past_due",
+				}
+			);
+
+			console.log("Subscription failed to renew");
+			break;
+		}
 
 		case "checkout.session.async_payment_failed":
 			const newOrder = await Order.findOneAndUpdate(

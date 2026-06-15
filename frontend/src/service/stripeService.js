@@ -9,6 +9,15 @@ export const fetchProducts = async () => {
 	}
 };
 
+export const fetchPlans = async () => {
+	try {
+		const { data } = await api.get(`/api/ecommerce/plans`);
+		return data;
+	} catch (error) {
+		throw error;
+	}
+};
+
 export const fetchStripePayementStatus = async (stripeId) => {
 	try {
 		const { data } = await api.get(
@@ -23,6 +32,18 @@ export const fetchStripePayementStatus = async (stripeId) => {
 export const checkout = async (payload) => {
 	try {
 		const { data } = await api.post(`/api/ecommerce/create-checkout`, payload);
+		return data;
+	} catch (error) {
+		throw error;
+	}
+};
+
+export const subscribe = async (payload) => {
+	try {
+		const { data } = await api.post(
+			`/api/ecommerce/create-subscription`,
+			payload
+		);
 		return data;
 	} catch (error) {
 		throw error;

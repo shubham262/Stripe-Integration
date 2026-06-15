@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { Card, Button, Typography, Switch, message, Divider, Tag } from "antd";
 import { FaCheck } from "react-icons/fa";
 import { SiStripe } from "react-icons/si";
+import { fetchPlans, subscribe } from "@/service/stripeService";
 
 const { Title, Text } = Typography;
 
@@ -54,8 +55,21 @@ const dummyPlans = [
 
 const Subscription = () => {
 	const [billingInterval, setBillingInterval] = useState("month");
-	const [plans, setPlans] = useState(dummyPlans || []);
+	const [plans, setPlans] = useState([]);
 	const [loadingPlanId, setLoadingPlanId] = useState(null);
+
+	useEffect(() => {
+		getPlans();
+	}, []);
+
+	const getPlans = useCallback(async () => {
+		try {
+			const response = await fetchPlans();
+			setPlans(response?.plans || []);
+		} catch (error) {
+			message.error("Something went wrong");
+		}
+	}, []);
 
 	const handleSubscribe = async (plan) => {
 		setLoadingPlanId(plan._id);
@@ -64,6 +78,9 @@ const Subscription = () => {
 				planId: plan._id,
 				interval: billingInterval,
 			};
+
+			const response = await subscribe(payload);
+			window.location.href = response?.url;
 
 			message.success(
 				`Redirecting to Stripe for ${plan.name} (${billingInterval}ly)...`
